@@ -1,5 +1,8 @@
 = Basic Pipeline
 
+I assume you have completed the Tekton Tutorial at https://dn.dev/tekton-tutorial
+
+
 == Overall Steps
 . create a project
 . create PVC to hold the sources/artifacts
@@ -71,7 +74,7 @@ spec:
     name: git-clone
   params: 
     - name: url
-      value: https://github.com/burrsutter/tekton-git-jib-kn
+      value: https://github.com/burrsutter/tekton-spring-boot
     - name: revision
       value: master
     - name: deleteExisting
