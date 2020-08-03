@@ -1,0 +1,591 @@
+= Basic Pipeline
+
+== Overall Steps
+. create a project
+. create PVC to hold the sources/artifacts
+. git clone
+. maven
+. buildah
+. kn
+
+=== Create a Project to hold this lab
+----
+oc new-project apipes
+----
+
+=== Create PVC to hold the workspace
+----
+kubectl apply -f pvc-workspace.yaml
+----
+
+OR
+
+----
+cat <<EOF | kubectl create -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: a-place-to-hold-stuff
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 1Gi
+EOF
+----
+
+----
+kubectl get pvc
+----
+
+it will say *Pending* until the actual git clone is executed
+
+
+=== Task: git clone
+----
+kubectl create -f https://raw.githubusercontent.com/tektoncd/catalog/master/task/git-clone/0.1/git-clone.yaml
+
+----
+
+----
+tkn task ls
+NAME             DESCRIPTION              AGE
+git-clone        These Tasks are Git...   17 seconds ago
+----
+
+=== TaskRun: git-clone
+
+----
+cat <<EOF | kubectl create -f -
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  generateName: git-clone-
+  labels: 
+    tekton.dev/task: git-clone
+spec:
+  taskRef:
+    kind: Task
+    name: git-clone
+  params: 
+    - name: url
+      value: https://github.com/burrsutter/tekton-git-jib-kn
+    - name: revision
+      value: master
+    - name: deleteExisting
+      value: 'true'
+  workspaces: 
+    - name: output
+      persistentVolumeClaim:
+        claimName: a-place-to-hold-stuff
+EOF
+----
+
+=== Get the name of the TaskRun
+----
+tkn tr ls
+NAME              STARTED         DURATION   STATUS
+git-clone-d9jgl   4 seconds ago   ---        Running(Pending)
+----
+
+Wait for Status succeeded
+----
+tkn tr ls
+NAME              STARTED          DURATION     STATUS
+git-clone-d9jgl   46 seconds ago   34 seconds   Succeeded
+----
+
+=== Get the logs of that specific TaskRun
+
+----
+tkn tr logs git-clone-d9jgl
+
+[clone] + CHECKOUT_DIR=/workspace/output/
+[clone] + '[[' false '==' true ]]
+[clone] + test -z
+[clone] + test -z
+[clone] + test -z
+[clone] + /ko-app/git-init -url https://github.com/burrsutter/tekton-git-jib-kn -revision master -refspec  -path /workspace/output/ '-sslVerify=true' '-submodules=true' -depth 1
+[clone] {"level":"info","ts":1596385838.4790232,"caller":"git/git.go:139","msg":"Successfully cloned https://github.com/burrsutter/tekton-git-jib-kn @ 52aabdf1d173c4a6c959b783ee8d20c85e19f625 (grafted, HEAD, origin/master) in path /workspace/output/"}
+[clone] {"level":"info","ts":1596385838.510692,"caller":"git/git.go:180","msg":"Successfully initialized and updated submodules in path /workspace/output/"}
+[clone] + cd /workspace/output/
+[clone] + git rev-parse HEAD
+[clone] + tr -d '\n'
+[clone] + RESULT_SHA=52aabdf1d173c4a6c959b783ee8d20c85e19f625
+[clone] + EXIT_CODE=0
+[clone] + '[' 0 '!=' 0 ]
+[clone] + echo -n 52aabdf1d173c4a6c959b783ee8d20c85e19f625
+----
+
+Tip: if the tr listing grows to long and you wish to have a clean slate
+----
+kubectl delete tr --all
+---- 
+
+
+Tip: a trick to always getting the last TR logs
+----
+tkn tr logs -f -a $(tkn tr ls | awk 'NR==2{print $1}')
+----
+
+=== Task: listing
+----
+kubectl create -f task-list-directory.yaml
+----
+
+----
+tkn task ls
+NAME             DESCRIPTION              AGE
+git-clone        These Tasks are Git...   1 minute ago
+list-directory   Simple directory li...   3 seconds ago
+----
+
+=== TaskRun: Listing
+----
+cat <<EOF | kubectl create -f -
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  generateName: list-directory-
+  labels:
+    tekton.dev/task: list-directory
+spec:
+  taskRef:
+    name: list-directory
+  workspaces:
+    - name: directory
+      persistentVolumeClaim:
+        claimName: a-place-to-hold-stuff
+EOF
+----
+
+----
+tkn tr ls
+NAME                   STARTED         DURATION     STATUS
+list-directory-7wxjd   2 seconds ago   ---          Running(Pending)
+git-clone-d9jgl        1 minute ago    34 seconds   Succeeded
+----
+
+----
+tkn tr logs list-directory-7wxjd
+
+[list-directory] total 36
+[list-directory] drwxrwsr-x    4 10006200 10006200      4096 Aug  3 15:57 src
+[list-directory] -rw-rw-r--    1 10006200 10006200       461 Aug  3 15:57 readme.adoc
+[list-directory] -rw-rw-r--    1 10006200 10006200      1846 Aug  3 15:57 pom.xml
+[list-directory] -rw-rw-r--    1 10006200 10006200      6608 Aug  3 15:57 mvnw.cmd
+[list-directory] -rwxrwxr-x    1 10006200 10006200     10070 Aug  3 15:57 mvnw
+[list-directory] -rw-rw-r--    1 10006200 10006200       111 Aug  3 15:57 Dockerfile
+----
+
+OR
+----
+tkn task start list-directory \
+  --showlog \
+  --workspace name=directory,claimName=a-place-to-hold-stuff
+----
+
+=== Nexus Service
+
+Deploy a Nexus Service to cache Maven artifacts 
+----
+kubectl apply -f https://raw.githubusercontent.com/redhat-developer-demos/tekton-tutorial/master/install/utils/nexus.yaml
+----
+
+=== Create a ConfigMap to hold the settings.xml
+----
+kubectl create cm maven-settings \
+  --from-file=settings.xml=maven-settings.xml
+----
+
+=== Task: Maven
+----
+kubectl apply -f https://raw.githubusercontent.com/tektoncd/catalog/master/task/maven/0.1/maven.yaml
+----
+
+----
+tkn task ls
+NAME             DESCRIPTION              AGE
+git-clone        These Tasks are Git...   4 minutes ago
+list-directory   Simple directory li...   2 minutes ago
+maven            This Task can be us...   4 seconds ago
+----
+
+----
+tkn task describe maven
+----
+
+
+==== TaskRun: Maven package
+
+----
+cat <<EOF | kubectl create -f -
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  generateName: maven-build-
+  labels:
+    tekton.dev/task: maven
+spec:
+  taskRef:
+    name: maven
+  params:
+    - name: GOALS 
+      value:
+        - -B
+        - -DskipTests
+        - clean
+        - package
+  workspaces:
+    - name: maven-settings
+      configmap: 
+        name: maven-settings
+    - name: source
+      persistentVolumeClaim: 
+        claimName: a-place-to-hold-stuff
+EOF
+----
+
+OR (not working for CLI)
+
+----
+tkn task start maven \
+  --showlog \
+  --workspace name=source,claimName=a-place-to-hold-stuff \
+  --workspace name=maven-setings,configmap=maven-settings
+----
+
+Monitor logs of the Maven TaskRun
+----
+tkn tr logs -f -a $(tkn tr ls | awk 'NR==2{print $1}')
+----
+
+Look for BUILD SUCCESS at the end
+----
+[mvn-goals] [INFO] Replacing main artifact with repackaged archive
+[mvn-goals] [INFO] ------------------------------------------------------------------------
+[mvn-goals] [INFO] BUILD SUCCESS
+[mvn-goals] [INFO] ------------------------------------------------------------------------
+[mvn-goals] [INFO] Total time:  01:07 min
+[mvn-goals] [INFO] Finished at: 2020-08-02T17:30:09Z
+[mvn-goals] [INFO] ------------------------------------------------------------------------
+----
+
+=== List the target directory
+
+Looking for the fat jar with a TaskRun
+
+----
+cat <<EOF | kubectl create -f -
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  generateName: list-directory-
+  labels:
+    tekton.dev/task: list-directory
+spec:
+  taskRef:
+    name: list-directory
+  params:
+    - name: sub-dirs
+      value:
+        - target
+  workspaces:
+    - name: directory
+      persistentVolumeClaim:
+        claimName: a-place-to-hold-stuff
+EOF
+----
+
+and follow the logs
+
+----
+tkn tr logs -f -a $(tkn tr ls | awk 'NR==2{print $1}')
+----
+
+expected output of the target directory listing
+----
+[list-directory] total 16156
+[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  2 17:29 maven-status
+[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  2 17:29 generated-sources
+[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  2 17:29 test-classes
+[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  2 17:29 generated-test-sources
+[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  2 17:29 classes
+[list-directory] -rw-rw-r--    1 10006200 10006200      3756 Aug  2 17:30 tekton-git-jib-kn-0.0.1-SNAPSHOT.jar.original
+[list-directory] drwxrwsr-x    2 10006200 10006200      4096 Aug  2 17:30 maven-archiver
+[list-directory] -rw-rw-r--    1 10006200 10006200  16514706 Aug  2 17:30 tekton-git-jib-kn-0.0.1-SNAPSHOT.jar
+----
+
+=== Task Buildah
+----
+kubectl apply -f https://raw.githubusercontent.com/tektoncd/catalog/master/task/buildah/0.1/buildah.yaml
+----
+
+----
+tkn task ls
+NAME             DESCRIPTION              AGE
+buildah          Buildah task builds...   4 seconds ago
+git-clone        These Tasks are Git...   1 hour ago
+list-directory   Simple directory li...   17 minutes ago
+maven            This Task can be us...   1 hour ago
+----
+
+----
+tkn task describe buildah
+----
+
+=== TaskRun: Buildah
+
+----
+cat <<EOF | kubectl create -f -
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  generateName: buildah-build-
+  labels:
+    tekton.dev/task: buildah-build
+spec:
+  taskRef:
+    name: buildah
+  params:
+    - name: IMAGE
+      value: 'image-registry.openshift-image-registry.svc:5000/apipes/tekton-git-jib-kn'
+    - name: TLSVERIFY
+      value: 'false'
+  workspaces:
+    - name: source
+      persistentVolumeClaim:
+        claimName: a-place-to-hold-stuff
+EOF
+----
+
+----
+tkn tr logs -f -a $(tkn tr ls | awk 'NR==2{print $1}')
+----
+
+=== Task: kn
+----
+kubectl apply -f https://raw.githubusercontent.com/tektoncd/catalog/master/task/kn/0.1/kn.yaml
+----
+
+----
+tkn task ls
+NAME             DESCRIPTION              AGE
+buildah          Buildah task builds...   10 minutes ago
+git-clone        These Tasks are Git...   29 minutes ago
+kn               This Task performs ...   4 seconds ago
+list-directory   Simple directory li...   16 minutes ago
+maven            This Task can be us...   13 minutes ago
+----
+
+kn needs a ServiceAccount
+
+Note: "apipes" is the namespace created with oc new-project
+
+----
+curl -sSL \
+  https://raw.githubusercontent.com/tektoncd/catalog/master/task/kn/0.1/kn-deployer.yaml \
+  | yq w - -d0 metadata.namespace apipes \
+  | yq w - -d2 subjects.[0].namespace apipes \
+  | kubectl apply -f -
+----
+
+=== TaskRun: kn
+
+----
+cat <<EOF | kubectl create -f -
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  generateName: kn-deployer-
+  labels:
+    tekton.dev/task: kn-deployer
+spec:
+  serviceAccountName: kn-deployer-account
+  taskRef:
+    name: kn
+  params:
+    - name: ARGS
+      value: 
+      - 'service'
+      - 'create'
+      - 'myservice'
+      - '--force'
+      - '--image=image-registry.openshift-image-registry.svc:5000/apipes/tekton-git-jib-kn'
+EOF
+----
+
+----
+tkn tr logs -f -a $(tkn tr ls | awk 'NR==2{print $1}')
+----
+
+=== Pipeline
+
+Now that all the Tasks and TaskRuns are successful, time to wrap everything into a Pipeline
+
+----
+cat <<'EOF' | kubectl create -f -
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: pipeline-git-mvn-buildah-kn
+spec:
+  description: >-
+    The Pipline to build and deploy the Java App as Knative Service.
+  params:
+    - name: image-name
+      description: The fully qualified image name e.g example.com/tekton-tutorial/helloworld
+      default: image-registry.openshift-image-registry.svc:5000/apipes/tekton-git-jib-kn
+    - name: kn-service-name
+      description: The Knative Service name
+      default: myservice
+    - name: github-repo-url
+      description: The GitHub Repo of the Java Application
+      default: https://github.com/burrsutter/tekton-git-jib-kn
+    - name: github-repo-revision
+      description: The GitHub revision to use
+      default: master
+  workspaces:
+    - name: source
+    - name: maven-settings 
+  tasks:
+    - name: git-clone
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: $(params.github-repo-url)
+        - name: revision
+          value: $(params.github-repo-revision)
+        - name: deleteExisting
+          value: 'true'
+      workspaces:
+        - name: output
+          workspace: source
+    - name: mvn-test
+      taskRef:
+        name: maven
+      runAfter:
+        - git-clone
+      params:
+        - name: GOALS
+          value: ['-B', 'clean', 'test']
+      workspaces:
+        - name: maven-settings
+          workspace: maven-settings
+        - name: source
+          workspace: source
+    - name: mvn-package
+      taskRef:
+        name: maven
+      runAfter:
+        - mvn-test
+      params:
+        - name: GOALS
+          value: ['-B', '-DskipTests', 'clean', 'package']
+      workspaces:
+        - name: maven-settings
+          workspace: maven-settings
+        - name: source
+          workspace: source
+    - name: buildah-image
+      taskRef:
+        name: buildah
+      runAfter:
+        - mvn-package
+      params:
+        - name: IMAGE
+          value: '$(params.image-name)'
+        # since pushing to internal registry we skip TLS verify
+        - name: TLSVERIFY
+          value: 'false'
+      workspaces:
+        - name: source
+          workspace: source
+    - name: deploy-kn-service
+      taskRef:
+        name: kn
+      runAfter:
+        - buildah-image
+      params:
+        - name: ARGS
+          value:
+            - 'service'
+            - 'create'
+            - '$(params.kn-service-name)'
+            - '--force'
+            - '--image=$(params.image-name)@$(tasks.buildah-image.results.IMAGE_DIGEST)'
+EOF
+----
+
+=== Pipeline Run:
+
+----
+cat <<'EOF' | kubectl create -f -
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: pipeline-run-git-mvn-buildah-kn-
+  labels:
+    tekton.dev/pipeline: pipeline-git-mvn-buildah-kn
+spec:
+  serviceAccountName: kn-deployer-account 
+  pipelineRef:
+    name: pipeline-git-mvn-buildah-kn
+  workspaces: 
+    - name: maven-settings
+      configmap:
+        name: maven-settings
+    - name: source
+      persistentVolumeClaim:
+        claimName: a-place-to-hold-stuff
+EOF
+----
+
+----
+tkn pr logs -f -a $(tkn pr ls | awk 'NR==2{print $1}')
+----
+
+
+== Enhancement with Maven Jib
+
+=== TaskRun: Maven Jib 
+
+Note: this is not working as it needs
+
+mvn compile jib:build -Dimage=quay.io/burrsutter/tekton-git-jib-kn:v1
+
+----
+cat <<EOF | kubectl create -f -
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  generateName: maven-jib-
+  labels:
+    tekton.dev/task: maven
+spec:
+  taskRef:
+    name: maven
+  params:
+    - name: GOALS 
+      value:
+        - -B
+        - -DskipTests
+        - clean
+        - package
+        - jib:build
+  workspaces:
+    - name: maven-settings
+      configmap: 
+        name: maven-settings
+    - name: source
+      persistentVolumeClaim: 
+        claimName: a-place-to-hold-stuff
+EOF
+----
+
+----
+tkn tr logs -f -a $(tkn tr ls | awk 'NR==2{print $1}')
+----

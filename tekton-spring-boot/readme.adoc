@@ -1,0 +1,26 @@
+
+This project combines:
+Spring Boot
+Spring REST Controller (part of Spring Web)
+Jib
+to be used in a Tekton Pipeline of 
+git clone
+maven build
+jib build & push of the image
+kn creation of the Knative Serving service
+
+mvn clean compile package
+
+docker login quay.io
+
+mvn compile jib:build -Dimage=quay.io/burrsutter/tekton-git-jib-kn:v1
+
+Make the repository public
+
+Test
+
+docker run -it -p 8080:8080 quay.io/burrsutter/tekton-git-jib-kn:v1
+
+curl localhost:8080
+
+
