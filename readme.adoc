@@ -106,20 +106,25 @@ git-clone-d9jgl   46 seconds ago   34 seconds   Succeeded
 tkn tr logs git-clone-d9jgl
 
 [clone] + CHECKOUT_DIR=/workspace/output/
-[clone] + '[[' false '==' true ]]
+[clone] + '[[' true '==' true ]]
+[clone] + cleandir
+[clone] + '[[' -d /workspace/output/ ]]
+[clone] + rm -rf '/workspace/output//*'
+[clone] + rm -rf /workspace/output//.git
+[clone] + rm -rf '/workspace/output//..?*'
 [clone] + test -z
 [clone] + test -z
 [clone] + test -z
-[clone] + /ko-app/git-init -url https://github.com/burrsutter/tekton-git-jib-kn -revision master -refspec  -path /workspace/output/ '-sslVerify=true' '-submodules=true' -depth 1
-[clone] {"level":"info","ts":1596385838.4790232,"caller":"git/git.go:139","msg":"Successfully cloned https://github.com/burrsutter/tekton-git-jib-kn @ 52aabdf1d173c4a6c959b783ee8d20c85e19f625 (grafted, HEAD, origin/master) in path /workspace/output/"}
-[clone] {"level":"info","ts":1596385838.510692,"caller":"git/git.go:180","msg":"Successfully initialized and updated submodules in path /workspace/output/"}
+[clone] + /ko-app/git-init -url https://github.com/burrsutter/tekton-spring-boot -revision master -refspec  -path /workspace/output/ '-sslVerify=true' '-submodules=true' -depth 1
+[clone] {"level":"info","ts":1596485993.8097796,"caller":"git/git.go:139","msg":"Successfully cloned https://github.com/burrsutter/tekton-spring-boot @ c5a704d4145ad9cf0e15fb6514df27da1fe14470 (grafted, HEAD, origin/master) in path /workspace/output/"}
+[clone] {"level":"info","ts":1596485993.8418102,"caller":"git/git.go:180","msg":"Successfully initialized and updated submodules in path /workspace/output/"}
 [clone] + cd /workspace/output/
 [clone] + git rev-parse HEAD
 [clone] + tr -d '\n'
-[clone] + RESULT_SHA=52aabdf1d173c4a6c959b783ee8d20c85e19f625
+[clone] + RESULT_SHA=c5a704d4145ad9cf0e15fb6514df27da1fe14470
 [clone] + EXIT_CODE=0
 [clone] + '[' 0 '!=' 0 ]
-[clone] + echo -n 52aabdf1d173c4a6c959b783ee8d20c85e19f625
+[clone] + echo -n c5a704d4145ad9cf0e15fb6514df27da1fe14470
 ----
 
 Tip: if the tr listing grows to long and you wish to have a clean slate
@@ -127,6 +132,12 @@ Tip: if the tr listing grows to long and you wish to have a clean slate
 kubectl delete tr --all
 ---- 
 
+And if your list of Completed pods grows long
+
+----
+kubectl delete pods --field-selector=status.phase=Succeeded
+kubectl delete pods --field-selector=status.phase=Failed
+----
 
 Tip: a trick to always getting the last TR logs
 ----
@@ -310,18 +321,18 @@ tkn tr logs -f -a $(tkn tr ls | awk 'NR==2{print $1}')
 
 expected output of the target directory listing
 ----
-[list-directory] total 16156
-[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  2 17:29 maven-status
-[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  2 17:29 generated-sources
-[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  2 17:29 test-classes
-[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  2 17:29 generated-test-sources
-[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  2 17:29 classes
-[list-directory] -rw-rw-r--    1 10006200 10006200      3756 Aug  2 17:30 tekton-git-jib-kn-0.0.1-SNAPSHOT.jar.original
-[list-directory] drwxrwsr-x    2 10006200 10006200      4096 Aug  2 17:30 maven-archiver
-[list-directory] -rw-rw-r--    1 10006200 10006200  16514706 Aug  2 17:30 tekton-git-jib-kn-0.0.1-SNAPSHOT.jar
+[list-directory] total 16164
+[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  3 20:23 maven-status
+[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  3 20:23 generated-sources
+[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  3 20:23 test-classes
+[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  3 20:23 generated-test-sources
+[list-directory] drwxrwsr-x    3 10006200 10006200      4096 Aug  3 20:23 classes
+[list-directory] -rw-rw-r--    1 10006200 10006200      4353 Aug  3 20:23 tekton-spring-boot-0.0.1-SNAPSHOT.jar.original
+[list-directory] drwxrwsr-x    2 10006200 10006200      4096 Aug  3 20:23 maven-archiver
+[list-directory] -rw-rw-r--    1 10006200 10006200  16515300 Aug  3 20:23 tekton-spring-boot-0.0.1-SNAPSHOT.jar
 ----
 
-=== Task Buildah
+=== Task: Buildah
 ----
 kubectl apply -f https://raw.githubusercontent.com/tektoncd/catalog/master/task/buildah/0.1/buildah.yaml
 ----
@@ -354,7 +365,7 @@ spec:
     name: buildah
   params:
     - name: IMAGE
-      value: 'image-registry.openshift-image-registry.svc:5000/apipes/tekton-git-jib-kn'
+      value: 'image-registry.openshift-image-registry.svc:5000/apipes/tekton-spring-boot'
     - name: TLSVERIFY
       value: 'false'
   workspaces:
@@ -366,6 +377,24 @@ EOF
 
 ----
 tkn tr logs -f -a $(tkn tr ls | awk 'NR==2{print $1}')
+----
+
+Expected output
+----
+[push] Getting image source signatures
+[push] Copying blob sha256:90c2e42f948b524cf98005073e0b0aa2065160abf9e8b314976c064e270d92ac
+[push] Copying blob sha256:73ac5884e9391c51862edc7b13349576653cfefb8e1cc388992b407a9bbd9cb4
+[push] Copying blob sha256:f9ddbcc4e7954a705b700c35c5e5beceabd86af121a6e561d86437a8512a6be6
+[push] Copying blob sha256:7b08010864ba4c7ce9dfe1b90244b459b77c0387051659d37454783d10ab1113
+[push] Copying config sha256:d139ef8f9299767cec7a21bc02be30155291fc4f0a9f87caf954b2b5b4bc66ef
+[push] Writing manifest to image destination
+[push] Copying config sha256:d139ef8f9299767cec7a21bc02be30155291fc4f0a9f87caf954b2b5b4bc66ef
+[push] Writing manifest to image destination
+[push] Storing signatures
+
+[digest-to-results] + cat /workspace/source/image-digest
+[digest-to-results] + tee /tekton/results/IMAGE_DIGEST
+[digest-to-results] sha256:ae34e15d257738c2b862efcbfe667dac20c2649cecaeb964c18778ae1e90221e
 ----
 
 === Task: kn
@@ -383,6 +412,8 @@ list-directory   Simple directory li...   16 minutes ago
 maven            This Task can be us...   13 minutes ago
 ----
 
+=== Create ServiceAccount
+
 kn needs a ServiceAccount
 
 Note: "apipes" is the namespace created with oc new-project
@@ -393,6 +424,49 @@ curl -sSL \
   | yq w - -d0 metadata.namespace apipes \
   | yq w - -d2 subjects.[0].namespace apipes \
   | kubectl apply -f -
+----
+
+Expected Results:
+
+----
+kubectl describe sa kn-deployer-account
+
+Name:                kn-deployer-account
+Namespace:           apipes
+Labels:              <none>
+Annotations:         Image pull secrets:  kn-deployer-account-dockercfg-dt9xz
+Mountable secrets:   kn-deployer-account-token-hqdsn
+                     kn-deployer-account-dockercfg-dt9xz
+Tokens:              kn-deployer-account-token-hqdsn
+                     kn-deployer-account-token-vdsfk
+Events:              <none>
+----
+
+----
+kubectl describe clusterrole kn-deployer
+
+Name:                            kn-deployer
+Labels:                          <none>
+Annotations:                     PolicyRule:
+  Resources                      Non-Resource URLs  Resource Names  Verbs
+  ---------                      -----------------  --------------  -----
+  revisions.serving.knative.dev  []                 []              [get list create update delete patch watch]
+  routes.serving.knative.dev     []                 []              [get list create update delete patch watch]
+  services.serving.knative.dev   []                 []              [get list create update delete patch watch]
+----
+
+----
+kubectl describe clusterrolebinding kn-deployer-binding
+
+Name:         kn-deployer-binding
+Labels:       <none>
+Annotations:  Role:
+  Kind:       ClusterRole
+  Name:       kn-deployer
+Subjects:
+  Kind            Name                 Namespace
+  ----            ----                 ---------
+  ServiceAccount  kn-deployer-account  apipes
 ----
 
 === TaskRun: kn
@@ -416,13 +490,34 @@ spec:
       - 'create'
       - 'myservice'
       - '--force'
-      - '--image=image-registry.openshift-image-registry.svc:5000/apipes/tekton-git-jib-kn'
+      - '--image=image-registry.openshift-image-registry.svc:5000/apipes/tekton-spring-boot'
 EOF
 ----
 
 ----
 tkn tr logs -f -a $(tkn tr ls | awk 'NR==2{print $1}')
 ----
+
+Expected output
+----
+[kn] Creating service 'myservice' in namespace 'apipes':
+[kn]
+[kn]   0.236s The Route is still working to reflect the latest desired specification.
+[kn]   0.454s Configuration "myservice" is waiting for a Revision to become ready.
+[kn]   6.935s ...
+[kn]   7.044s Ingress has not yet been reconciled.
+[kn]   7.238s Ready to serve.
+[kn]
+[kn] Service 'myservice' created to latest revision 'myservice-yhlts-1' is available at URL:
+[kn] http://myservice-apipes.apps.dublin.burr-on-aws.com
+----
+
+Curl that endpoint
+----
+curl http://myservice-apipes.apps.dublin.burr-on-aws.com
+Hej from Spring Boot! 0 on myservice-yhlts-1-deployment-7dd4547f7c-qgkwv
+----
+
 
 === Pipeline
 
@@ -439,14 +534,14 @@ spec:
     The Pipline to build and deploy the Java App as Knative Service.
   params:
     - name: image-name
-      description: The fully qualified image name e.g example.com/tekton-tutorial/helloworld
-      default: image-registry.openshift-image-registry.svc:5000/apipes/tekton-git-jib-kn
+      description: The fully qualified image name 
+      default: 'image-registry.openshift-image-registry.svc:5000/apipes/tekton-spring-boot'
     - name: kn-service-name
       description: The Knative Service name
       default: myservice
     - name: github-repo-url
       description: The GitHub Repo of the Java Application
-      default: https://github.com/burrsutter/tekton-git-jib-kn
+      default: https://github.com/burrsutter/tekton-spring-boot
     - name: github-repo-revision
       description: The GitHub revision to use
       default: master
@@ -501,7 +596,6 @@ spec:
       params:
         - name: IMAGE
           value: '$(params.image-name)'
-        # since pushing to internal registry we skip TLS verify
         - name: TLSVERIFY
           value: 'false'
       workspaces:
@@ -523,7 +617,7 @@ spec:
 EOF
 ----
 
-=== Pipeline Run:
+=== Pipeline Run
 
 ----
 cat <<'EOF' | kubectl create -f -
@@ -553,6 +647,8 @@ tkn pr logs -f -a $(tkn pr ls | awk 'NR==2{print $1}')
 
 
 == Enhancement with Maven Jib
+
+*NOT WORKING*
 
 === TaskRun: Maven Jib 
 
