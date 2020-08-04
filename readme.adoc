@@ -86,6 +86,18 @@ spec:
 EOF
 ----
 
+(OR)
+
+[source,bash,attributes]
+----
+tkn task start git-clone \
+    --param=url=https://github.com/burrsutter/tekton-spring-boot \
+    --param=revision=master \
+    --workspace=name=output,claimName=a-place-to-hold-stuff \
+    --showlog
+----
+
+
 === Get the name of the TaskRun
 ----
 tkn tr ls
@@ -262,14 +274,18 @@ spec:
 EOF
 ----
 
-OR (not working for CLI)
+OR
 
+[source,bash,subs="+quotes"]
 ----
 tkn task start maven \
-  --showlog \
-  --workspace name=source,claimName=a-place-to-hold-stuff \
-  --workspace name=maven-setings,configmap=maven-settings
+    --param=GOALS="-B,-DskipTests, clean,package" \
+    --workspace=name=source,claimName=a-place-to-hold-stuff \
+    --workspace=name=maven-settings,#config=maven-settings#  \#<.>
+    --showlog
 ----
+
+<.> Its *config* not *configmap*
 
 Monitor logs of the Maven TaskRun
 ----
@@ -654,11 +670,22 @@ tkn pr logs -f -a $(tkn pr ls | awk 'NR==2{print $1}')
 
 Note: this is not working as it needs
 
+[source,bash,attributes]
+----
 mvn compile jib:build -Dimage=quay.io/burrsutter/tekton-git-jib-kn:v1
+----
+
+
+For insecure registry the jib command is:
+
+[source,bash,attributes]
+----
+mvn compile -DskipTests,clean,compile,jib:build,-Djib.allowInsecureRegistries=true,-Dimage=image-registry.openshift-image-registry.svc:5000/apipes/tekton-spring-boot
+----
 
 ----
 cat <<EOF | kubectl create -f -
-apiVersion: tekton.dev/v1beta1
+echo 'apiVersion: tekton.dev/v1beta1
 kind: TaskRun
 metadata:
   generateName: maven-jib-
@@ -668,22 +695,38 @@ spec:
   taskRef:
     name: maven
   params:
-    - name: GOALS 
+    - name: GOALS
       value:
         - -B
         - -DskipTests
         - clean
-        - package
+        - compile
         - jib:build
+        - -Djib.allowInsecureRegistries=true #<.>
+        - -Dimage=image-registry.openshift-image-registry.svc:5000/apipes/tekton-spring-boot
   workspaces:
     - name: maven-settings
-      configmap: 
+      configmap:
         name: maven-settings
     - name: source
-      persistentVolumeClaim: 
-        claimName: a-place-to-hold-stuff
+      persistentVolumeClaim:
+        claimName: a-place-to-hold-stuff' | kubectl create -f - 
 EOF
 ----
+
+<.> this is required if Jib wants to push to local registry 
+
+(OR)
+
+[source,bash,quotes="+quotes"]
+----
+tkn task start maven \
+    --param=GOALS='-DskipTests,clean,compile,jib:build,-Djib.allowInsecureRegistries=true,-Dimage=image-registry.openshift-image-registry.svc:5000/apipes/tekton-spring-boot' \
+    --workspace=name=maven-settings,config=maven-settings  \
+    --workspace=name=source,claimName=a-place-to-hold-stuff \
+    --showlog
+----
+
 
 ----
 tkn tr logs -f -a $(tkn tr ls | awk 'NR==2{print $1}')
