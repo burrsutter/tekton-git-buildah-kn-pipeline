@@ -702,7 +702,7 @@ spec:
         - clean
         - compile
         - jib:build
-        - -Djib.allowInsecureRegistries=true <.>
+        - -Djib.allowInsecureRegistries=true #<.>
         - -Dimage=image-registry.openshift-image-registry.svc:5000/apipes/tekton-spring-boot
   workspaces:
     - name: maven-settings
