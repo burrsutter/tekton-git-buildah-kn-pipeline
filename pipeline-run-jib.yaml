@@ -1,0 +1,17 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: pipeline-run-git-mvn-jib-kn-
+  labels:
+    tekton.dev/pipeline: pipeline-git-mvn-jib-kn
+spec:
+  serviceAccountName: pipeline
+  pipelineRef:
+    name: pipeline-git-mvn-jib-kn
+  workspaces: 
+    - name: maven-settings
+      configmap:
+        name: maven-settings
+    - name: source
+      persistentVolumeClaim:
+        claimName: a-place-to-hold-stuff

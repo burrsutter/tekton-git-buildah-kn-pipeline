@@ -1,0 +1,96 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: pipeline-git-mvn-jib-kn
+spec:
+  description: >-
+    The Pipline to build and deploy the Java App as Knative Service.
+  params:
+    - name: image-name
+      description: The fully qualified image name 
+      default: 'image-registry.openshift-image-registry.svc:5000/apipes/tekton-spring-boot'
+    - name: kn-service-name
+      description: The Knative Service name
+      default: myservice
+    - name: github-repo-url
+      description: The GitHub Repo of the Java Application
+      default: https://github.com/burrsutter/tekton-spring-boot
+    - name: github-repo-revision
+      description: The GitHub revision to use
+      default: master
+  workspaces:
+    - name: source
+    - name: maven-settings 
+  tasks:
+    - name: git-clone
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: $(params.github-repo-url)
+        - name: revision
+          value: $(params.github-repo-revision)
+        - name: deleteExisting
+          value: 'true'
+      workspaces:
+        - name: output
+          workspace: source
+    - name: mvn-test
+      taskRef:
+        name: maven
+      runAfter:
+        - git-clone
+      params:
+        - name: GOALS
+          value: ['-B', 'clean', 'test']
+      workspaces:
+        - name: maven-settings
+          workspace: maven-settings
+        - name: source
+          workspace: source
+    - name: mvn-package
+      taskRef:
+        name: maven
+      runAfter:
+        - mvn-test
+      params:
+        - name: GOALS
+          value: ['-B', '-DskipTests', 'clean', 'package']
+      workspaces:
+        - name: maven-settings
+          workspace: maven-settings
+        - name: source
+          workspace: source
+    - name: mvn-jib-build
+      taskRef:
+        name: maven
+      runAfter:
+        - mvn-package
+      params:
+        - name: GOALS
+          value:
+            - '-B'
+            - '-DskipTests'
+            - 'clean'
+            - 'compile'
+            - 'jib:build'
+            - '-Djib.allowInsecureRegistries=true'
+            - '-Dimage=image-registry.openshift-image-registry.svc:5000/apipes/tekton-spring-boot'
+      workspaces:
+        - name: maven-settings
+          workspace: maven-settings
+        - name: source
+          workspace: source    
+    - name: deploy-kn-service
+      taskRef:
+        name: kn
+      runAfter:
+        - mvn-jib-build
+      params:
+        - name: ARGS
+          value:
+            - 'service'
+            - 'create'
+            - '$(params.kn-service-name)'
+            - '--force'
+            - '--image=$(params.image-name)'
