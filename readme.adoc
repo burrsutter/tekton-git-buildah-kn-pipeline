@@ -1,9 +1,23 @@
-= Basic Pipeline
+= Tekton Pipeline for Spring Boot
 
 I assume you have completed the Tekton Tutorial at https://dn.dev/tekton-tutorial
 
+== Quickstart for the Impatient
 
-== Overall Steps
+
+----
+./1-setup.sh
+----
+
+----
+./2-start-pipeline.sh
+./3-monitor-pipeline.sh
+----
+
+https://www.screencast.com/t/3DTIoIe9ec
+
+
+== Detailed Steps
 . create a project
 . create PVC to hold the sources/artifacts
 . git clone
@@ -671,8 +685,6 @@ tkn pr logs -f -a $(tkn pr ls | awk 'NR==2{print $1}')
 
 == Enhancement with Maven Jib
 
-*NOT WORKING*
-
 === TaskRun: Maven Jib 
 
 Note: this is not working as it needs
@@ -691,8 +703,8 @@ mvn compile -DskipTests,clean,compile,jib:build,-Djib.allowInsecureRegistries=tr
 ----
 
 ----
-cat <<EOF | kubectl create -f -
-echo 'apiVersion: tekton.dev/v1beta1
+cat <<'EOF' | kubectl create -f -
+apiVersion: tekton.dev/v1beta1
 kind: TaskRun
 metadata:
   generateName: maven-jib-
@@ -709,7 +721,7 @@ spec:
         - clean
         - compile
         - jib:build
-        - -Djib.allowInsecureRegistries=true #<.>
+        - -Djib.allowInsecureRegistries=true 
         - -Dimage=image-registry.openshift-image-registry.svc:5000/apipes/tekton-spring-boot
   workspaces:
     - name: maven-settings
@@ -717,11 +729,16 @@ spec:
         name: maven-settings
     - name: source
       persistentVolumeClaim:
-        claimName: a-place-to-hold-stuff' | kubectl create -f - 
+        claimName: a-place-to-hold-stuff
 EOF
 ----
 
 <.> this is required if Jib wants to push to local registry 
+
+----
+tkn tr logs -f -a $(tkn tr ls | awk 'NR==2{print $1}')
+----
+
 
 (OR)
 
@@ -734,7 +751,10 @@ tkn task start maven \
     --showlog
 ----
 
+=== Jib in Pipeline
 
 ----
-tkn tr logs -f -a $(tkn tr ls | awk 'NR==2{print $1}')
+kubectl create -f pipeline-git-mvn-jib-kn.yaml
+kubectl create -f pipeline-run-jib.yaml
+tkn pr logs -f -a $(tkn pr ls | awk 'NR==2{print $1}')
 ----
