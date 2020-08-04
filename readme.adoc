@@ -279,9 +279,9 @@ OR
 [source,bash,subs="+quotes"]
 ----
 tkn task start maven \
-    --param=GOALS="-B,-DskipTests, clean,package" \
+    --param=GOALS="-B,-DskipTests,clean,package" \
     --workspace=name=source,claimName=a-place-to-hold-stuff \
-    --workspace=name=maven-settings,#config=maven-settings#  \#<.>
+    --workspace=name=maven-settings,config=maven-settings  \
     --showlog
 ----
 
@@ -633,6 +633,13 @@ spec:
 EOF
 ----
 
+Note: For OpenShift, a couple of more tweaks to security settings to allow for the publish to the internal registry
+
+----
+oc adm policy add-cluster-role-to-user kn-deployer -z pipeline -n apipes
+oc adm policy who-can get services.serving.knative.dev
+----
+
 === Pipeline Run
 
 ----
@@ -644,7 +651,7 @@ metadata:
   labels:
     tekton.dev/pipeline: pipeline-git-mvn-buildah-kn
 spec:
-  serviceAccountName: kn-deployer-account 
+  serviceAccountName: pipeline
   pipelineRef:
     name: pipeline-git-mvn-buildah-kn
   workspaces: 
