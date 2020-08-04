@@ -1,6 +1,7 @@
 = Tekton Pipeline for Spring Boot
 
 I assume you have completed the Tekton Tutorial at https://dn.dev/tekton-tutorial
+and that you have installed OpenShift Pipelines and OpenShift Serverless correctly into an OpenShift 4.5
 
 == Quickstart for the Impatient
 
