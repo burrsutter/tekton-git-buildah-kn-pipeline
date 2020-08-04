@@ -759,3 +759,34 @@ kubectl create -f pipeline-git-mvn-jib-kn.yaml
 kubectl create -f pipeline-run-jib.yaml
 tkn pr logs -f -a $(tkn pr ls | awk 'NR==2{print $1}')
 ----
+
+== Pipeline Template (Global)
+
+This is an attempt to make the combination of Java + Knative Service offer a new pipeline. On the Import from Git (Developer Console) you can see this new pipeline option
+
+https://www.screencast.com/t/lZ0mv9xMsS
+
+
+----
+kubectl create -f pipeline-git-mvn-buildah-kn-clustertasks.yaml -n openshift
+kubectl -n openshift label pipeline pipeline-git-mvn-buildah-kn pipeline.openshift.io/runtime=java
+kubectl -n openshift label pipeline pipeline-git-mvn-buildah-kn pipeline.openshift.io/type=knative
+----
+
+----
+kubectl get pipelines pipeline-git-mvn-buildah-kn -n openshift --show-labels
+
+NAME                          AGE     LABELS
+pipeline-git-mvn-buildah-kn   3m31s   pipeline.openshift.io/runtime=java,pipeline.openshift.io/type=knative
+----
+
+Setup the project with the correct "workspaces"
+----
+oc new-project bpipes
+
+kubectl apply -f pvc-workspace.yaml
+kubectl create cm maven-settings \
+  --from-file=settings.xml=maven-settings.xml
+----
+
+
